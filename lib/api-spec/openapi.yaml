@@ -3,27 +3,151 @@ info:
   # Do not change the title, if the title changes, the import paths will be broken
   title: Api
   version: 0.1.0
-  description: API specification
+  description: GestureForge 3D API
 servers:
   - url: /api
     description: Base API path
 tags:
   - name: health
-    description: Health operations
+    description: Operaciones de salud
+  - name: anchors
+    description: Anclajes QR en la escena 3D
+  - name: exports
+    description: Exportación de modelos 3D
 paths:
   /healthz:
     get:
       operationId: healthCheck
       tags: [health]
-      summary: Health check
-      description: Returns server health status
+      summary: Estado del servidor
       responses:
         "200":
-          description: Healthy
+          description: OK
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
+
+  /anchors:
+    get:
+      operationId: listAnchors
+      tags: [anchors]
+      summary: Listar todos los anclajes QR
+      responses:
+        "200":
+          description: Lista de anclajes
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Anchor"
+    post:
+      operationId: createAnchor
+      tags: [anchors]
+      summary: Crear un nuevo anclaje QR
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AnchorInput"
+      responses:
+        "201":
+          description: Anclaje creado
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Anchor"
+
+  /anchors/{id}:
+    get:
+      operationId: getAnchor
+      tags: [anchors]
+      summary: Obtener un anclaje por ID
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Anclaje encontrado
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Anchor"
+        "404":
+          description: No encontrado
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    delete:
+      operationId: deleteAnchor
+      tags: [anchors]
+      summary: Eliminar un anclaje
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Eliminado correctamente
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessResponse"
+        "404":
+          description: No encontrado
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /export:
+    post:
+      operationId: saveExport
+      tags: [exports]
+      summary: Guardar modelo exportado en el servidor
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ExportInput"
+      responses:
+        "201":
+          description: Exportación guardada
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ExportFile"
+
+  /export/{filename}:
+    get:
+      operationId: downloadExport
+      tags: [exports]
+      summary: Descargar archivo exportado
+      parameters:
+        - name: filename
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Archivo binario
+        "404":
+          description: No encontrado
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
 components:
   schemas:
     HealthStatus:
@@ -31,6 +155,89 @@ components:
       properties:
         status:
           type: string
+        version:
+          type: string
       required:
         - status
 
+    Anchor:
+      type: object
+      required: [id, name, position, rotation, scale, createdAt]
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        position:
+          $ref: "#/components/schemas/Vec3"
+        rotation:
+          $ref: "#/components/schemas/Vec3"
+        scale:
+          $ref: "#/components/schemas/Vec3"
+        modelData:
+          type: ["string", "null"]
+          description: GLTF model data encoded as base64 or JSON string
+        createdAt:
+          type: string
+
+    AnchorInput:
+      type: object
+      required: [name, position, rotation, scale]
+      properties:
+        name:
+          type: string
+          minLength: 1
+        position:
+          $ref: "#/components/schemas/Vec3"
+        rotation:
+          $ref: "#/components/schemas/Vec3"
+        scale:
+          $ref: "#/components/schemas/Vec3"
+        modelData:
+          type: ["string", "null"]
+
+    Vec3:
+      type: object
+      required: [x, y, z]
+      properties:
+        x:
+          type: number
+        y:
+          type: number
+        z:
+          type: number
+
+    ExportInput:
+      type: object
+      required: [filename, data]
+      properties:
+        filename:
+          type: string
+        data:
+          type: string
+          description: Base64 encoded file content
+
+    ExportFile:
+      type: object
+      required: [filename, url]
+      properties:
+        filename:
+          type: string
+        url:
+          type: string
+
+    SuccessResponse:
+      type: object
+      required: [success]
+      properties:
+        success:
+          type: boolean
+        message:
+          type: string
+
+    ErrorResponse:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: string

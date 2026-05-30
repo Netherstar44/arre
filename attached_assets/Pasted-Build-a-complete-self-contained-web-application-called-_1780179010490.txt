@@ -1,0 +1,331 @@
+Build a complete, self-contained web application called "GestureForge 3D" — 
+a professional 3D modeling platform with real-time hand gesture control via webcam. 
+The app must run with `pnpm install` and `pnpm run dev`, using React + Vite (frontend) 
+and Express (backend), fully independent of Replit — no Replit-specific APIs, 
+no external paid services, all logic self-hosted.
+
+───────────────────────────────────────────────
+STACK & PROJECT STRUCTURE
+───────────────────────────────────────────────
+- Monorepo with /client (React + Vite) and /server (Express)
+- pnpm workspaces
+- Root package.json with:
+    "dev": "concurrently \"pnpm --filter server dev\" \"pnpm --filter client dev\""
+    "install": standard pnpm install
+- Vite proxies /api → Express server (port 3001)
+- Node 18+, no deprecated APIs
+
+Client dependencies:
+  - react, react-dom
+  - three (Three.js r160+)
+  - @mediapipe/hands + @mediapipe/camera_utils
+  - @react-three/fiber + @react-three/drei
+  - @react-three/rapier (Rapier physics WASM)
+  - zustand (state management)
+  - qrcode (QR generation)
+  - framer-motion
+  - lucide-react
+  - tailwindcss
+
+Server dependencies:
+  - express
+  - cors
+  - uuid
+  - ws (WebSocket for real-time sync)
+
+───────────────────────────────────────────────
+CORE FEATURE 1 — 3D MODELING ENGINE
+───────────────────────────────────────────────
+Full 3D scene using @react-three/fiber with:
+
+Primitive shapes toolbar (sidebar):
+  Box, Sphere, Cylinder, Torus, Cone, Capsule, 
+  Tetrahedron, Icosahedron, Torus Knot, Lathe surface
+
+Mesh editing:
+  - Vertex manipulation mode (select + drag vertices)
+  - Edge loop selection
+  - Face extrusion
+  - Subdivision surface toggle (smooth/flat shading)
+  - Boolean operations: Union, Subtract, Intersect (using CSG.js)
+  - Mirror modifier (X/Y/Z axis)
+  - Array modifier (count + offset)
+
+Materials panel:
+  - PBR material editor: color, roughness, metalness, 
+    emissive, opacity, wireframe toggle
+  - Texture upload (drag & drop image → apply as map)
+  - Environment map presets (studio, outdoor, sunset)
+
+Scene tools:
+  - Multi-select with bounding box
+  - Snap-to-grid (configurable grid size)
+  - Object hierarchy panel (scene tree)
+  - Undo/Redo stack (50 levels, zustand + immer)
+  - Export to GLTF, OBJ, STL (client-side)
+  - Import GLTF/OBJ files
+
+Camera controls:
+  - Orbit, Pan, Zoom (OrbitControls from drei)
+  - Numpad-style preset views: Front, Back, Top, Bottom, Left, Right, Isometric
+  - Focus selected object (F key)
+  - Camera bookmarks (save/restore up to 6 views)
+
+───────────────────────────────────────────────
+CORE FEATURE 2 — HAND GESTURE CONTROL (MEDIAPIPE)
+───────────────────────────────────────────────
+Webcam feed processed by @mediapipe/hands (21 landmarks per hand, 
+both hands simultaneously). Render a small semi-transparent webcam 
+overlay in the bottom-right corner showing skeleton landmarks.
+
+Gesture detection engine:
+  Build a GestureRecognizer class that:
+  - Runs at 30fps in a Web Worker or requestAnimationFrame loop
+  - Detects finger states (extended/curled) for all 5 fingers
+  - Computes pinch distance (thumb tip ↔ index tip)
+  - Computes palm normal vector
+  - Computes fist closure percentage
+  - Tracks two-hand distance and relative position
+  - Has configurable sensitivity thresholds per gesture
+  - Includes cooldown timers to prevent gesture spam
+
+Implement ALL of these named gestures:
+
+ONE-HAND GESTURES:
+  1. PINCH_GRAB — thumb + index pinch → grab/select object under cursor
+  2. PINCH_DRAG — pinch while moving hand → translate selected object (XY plane)
+  3. PINCH_LIFT — pinch + raise hand → translate object on Z axis
+  4. FIST_ROTATE — closed fist + rotate wrist → rotate object on Y axis
+  5. OPEN_PALM_SCALE_UP — open palm moving away from camera → scale up object
+  6. OPEN_PALM_SCALE_DOWN — open palm moving toward camera → scale down object
+  7. POINT_SELECT — only index extended → raycast select object
+  8. POINT_DRAW — index extended + wrist moving → draw spline curve in 3D space
+  9. PEACE_SIGN — index + middle extended → toggle vertex edit mode
+  10. THREE_FINGERS — index + middle + ring → toggle edge selection mode
+  11. FOUR_FINGERS — all except thumb → toggle face selection mode
+  12. THUMB_UP — fist + thumb extended up → confirm/apply operation
+  13. THUMB_DOWN — fist + thumb extended down → undo last operation
+  14. PINCH_TWIST — pinch + forearm rotation → rotate object on Z axis
+  15. SPREAD_FINGERS — all 5 fingers extended, spreading → extrude selected face
+  16. CLAW_DEFORM — fingers half-curled, moving → soft-body deform mesh vertices near cursor
+  17. KNIFE_HAND — flat palm, fingers together, horizontal → slice/cut geometry
+  18. INDEX_CIRCLE — index tip traces circle → create loop cut on mesh
+  19. WRIST_FLICK — fast wrist snap → throw/launch physics object
+  20. PALM_PUSH — palm facing camera, push forward → apply explosion force to nearby objects
+
+TWO-HAND GESTURES:
+  21. BIMANUAL_PINCH_SCALE — both hands pinch, move apart/together → uniform scale
+  22. BIMANUAL_ROTATE — both hands pinch, arc motion → rotate object in 3D space
+  23. BIMANUAL_STRETCH — both pinch on same object, pull apart → non-uniform stretch (X axis)
+  24. BIMANUAL_SQUISH — both pinch, push together → squish deformation (Y axis compression)
+  25. BIMANUAL_TWIST — both pinch, counter-rotate → twist deformation along axis
+  26. BIMANUAL_FRAME — both index fingers form rectangle → crop/frame viewport or create plane
+  27. CONDUCTOR_WAVE — both open palms, wave motion → global elastic wave simulation on all objects
+  28. PRAYER_HANDS — palms together, fingers up → freeze/unfreeze physics simulation
+  29. CLAP — both palms clap → reset scene to last saved state
+  30. BIMANUAL_PORTAL — both index+thumb form circles → create QR anchor point at cursor position
+
+Gesture feedback system:
+  - Floating gesture name badge (shows detected gesture for 1.5s)
+  - Animated hand skeleton overlay on webcam feed (color-coded by gesture)
+  - Configurable gesture sensitivity panel (sliders per gesture)
+  - Gesture assignment panel: user can remap gestures to different functions
+
+───────────────────────────────────────────────
+CORE FEATURE 3 — PHYSICS ENGINE (RAPIER)
+───────────────────────────────────────────────
+Use @react-three/rapier for real physics:
+
+- Toggle physics simulation on/off per object
+- Rigid body types: Dynamic, Kinematic, Fixed
+- Collider types: Auto-fit, Box, Sphere, Capsule, Convex Hull, Trimesh
+- Physics properties panel per object:
+    mass, restitution (bounciness), friction, 
+    linear damping, angular damping, gravity scale
+- Elastic/soft-body simulation:
+    Implement spring-mass soft body approximation:
+    subdivide mesh → connect vertices with spring joints →
+    simulate compression/stretch with configurable:
+      stiffness (0.0–1.0)
+      damping (0.0–1.0)  
+      rest length multiplier
+- Cloth simulation mode (plane mesh with pinned vertices + wind force)
+- Global forces panel: gravity direction+magnitude, wind (direction + turbulence), 
+  explosion (point + radius + force)
+- Physics debugger: toggle wireframe collider visualization
+- Slow-motion toggle (timeScale 0.1×)
+
+───────────────────────────────────────────────
+CORE FEATURE 4 — QR REFERENCE POINTS (myWebAR-style)
+───────────────────────────────────────────────
+Express backend provides:
+
+POST /api/anchors — create anchor { id, name, position, rotation, scale, modelData }
+GET /api/anchors — list all anchors
+GET /api/anchors/:id — get anchor details
+DELETE /api/anchors/:id — remove anchor
+
+Frontend QR system:
+  - "Create QR Anchor" button in toolbar
+  - User names the anchor and positions it in 3D scene
+  - Server saves anchor data (JSON file persistence, no DB required)
+  - Client generates QR code (using `qrcode` library) encoding URL:
+      http://localhost:5173/anchor/:id
+  - QR is displayed in a modal with download button (PNG export)
+  - /anchor/:id route loads the scene with that anchor's model pre-loaded
+  - Anchor viewer page shows the 3D model with orbit controls
+  - Anchors panel: list all saved anchors, click to teleport camera to anchor position
+  - Anchors appear in 3D scene as glowing marker pyramids with labels
+  - Export anchor pack: ZIP containing QR image + GLTF model + manifest JSON
+
+───────────────────────────────────────────────
+CORE FEATURE 5 — UI / UX
+───────────────────────────────────────────────
+Layout:
+  - Left sidebar: scene hierarchy + object properties
+  - Right sidebar: materials + physics + modifiers
+  - Top toolbar: mode buttons, file ops, gesture toggle, physics toggle
+  - Bottom bar: timeline scrubber (for physics replay), status bar
+  - Floating gesture HUD (bottom-right, collapsible)
+  - Command palette: Ctrl+K → fuzzy search all actions
+
+Visual aesthetic — DARK INDUSTRIAL:
+  Use CSS variables for the theme:
+    --bg-primary: #0a0a0f
+    --bg-secondary: #111118
+    --bg-panel: #16161f
+    --accent-primary: #00f0ff (cyan)
+    --accent-secondary: #ff3366 (hot pink)
+    --accent-tertiary: #7b2fff (violet)
+    --text-primary: #e8e8f0
+    --text-muted: #5a5a72
+    --border: #2a2a3a
+    --success: #00ff88
+    --warning: #ffaa00
+
+  Fonts: "JetBrains Mono" for labels/code, "Syne" for headings (load from Google Fonts)
+  Panels: glassmorphism with backdrop-filter blur + thin cyan border glow
+  Grid: infinite 3D grid in scene (GridHelper, semi-transparent)
+  Loading screen: animated logo with particle dissolve effect
+
+Keyboard shortcuts (show in help overlay Shift+?):
+  G — grab/translate  |  R — rotate  |  S — scale
+  X/Y/Z after G/R/S — constrain to axis
+  Tab — toggle edit/object mode
+  Ctrl+Z / Ctrl+Shift+Z — undo/redo
+  Ctrl+D — duplicate  |  Del — delete
+  F — focus selected  |  A — select all
+  H — hide selected  |  Alt+H — unhide all
+  Numpad 1/3/7 — front/side/top view
+  Space — play/pause physics
+  C — toggle camera gesture control
+  P — toggle physics on selected
+  Q — open QR anchor creator
+
+───────────────────────────────────────────────
+CORE FEATURE 6 — GESTURE CAMERA MODE
+───────────────────────────────────────────────
+When gesture mode active (toggle with C key or UI button):
+  - Webcam activates automatically
+  - 3D cursor (glowing sphere) follows hand position mapped to scene
+  - Cursor snaps to mesh surfaces (raycasting)
+  - Visual hand trail (particle stream following pinch point)
+  - "Air sculpt" mode: CLAW_DEFORM gesture lets user pull/push mesh 
+    vertices within a configurable radius brush
+  - Brush size controlled by two-hand spread distance
+  - Gesture sensitivity calibration wizard (first-time setup):
+      Shows hand outlines to calibrate for user's skin tone/lighting
+
+───────────────────────────────────────────────
+EXPRESS SERVER DETAILS
+───────────────────────────────────────────────
+server/index.js:
+  - PORT=3001
+  - CORS enabled for localhost:5173
+  - REST routes for anchors (file-based JSON storage in /server/data/anchors.json)
+  - WebSocket server (ws) on same port:
+      Broadcasts scene state changes for potential multi-user sync
+      Sends gesture event confirmations back to client
+  - Static file serving for exported models (/server/exports/)
+  - POST /api/export — saves GLTF to server exports folder
+  - GET /api/export/:filename — download exported file
+  - Health check: GET /api/health → { status: "ok", version: "1.0.0" }
+
+───────────────────────────────────────────────
+PERFORMANCE REQUIREMENTS
+───────────────────────────────────────────────
+- MediaPipe runs in requestAnimationFrame, throttled to 30fps max
+- Three.js scene targets 60fps; auto-downscales pixel ratio on low-end devices
+- React renders isolated from Three.js loop (no re-render on every frame)
+- Zustand stores: separate stores for scene, gestures, UI, physics
+- Web Worker for gesture processing (if SharedArrayBuffer available)
+- Lazy-load heavy libs (Rapier WASM, MediaPipe models) with loading progress
+- Vite chunk splitting: vendor, three, mediapipe, rapier as separate chunks
+- Service Worker for caching MediaPipe model files (avoid re-download)
+
+───────────────────────────────────────────────
+FILE STRUCTURE
+───────────────────────────────────────────────
+/
+├── package.json              ← root with pnpm workspaces + concurrently
+├── pnpm-workspace.yaml
+├── client/
+│   ├── package.json
+│   ├── vite.config.js        ← proxy /api → localhost:3001
+│   ├── index.html
+│   ├── tailwind.config.js
+│   ├── src/
+│   │   ├── main.jsx
+│   │   ├── App.jsx
+│   │   ├── components/
+│   │   │   ├── Scene/        ← Three.js canvas + lighting + grid
+│   │   │   ├── GestureHUD/   ← webcam overlay + landmark visualization
+│   │   │   ├── Toolbar/      ← top bar
+│   │   │   ├── Sidebar/      ← left/right panels
+│   │   │   ├── QRModal/      ← QR generator modal
+│   │   │   ├── PhysicsPanel/ 
+│   │   │   ├── MaterialPanel/
+│   │   │   └── CommandPalette/
+│   │   ├── hooks/
+│   │   │   ├── useGestures.js      ← MediaPipe + gesture logic
+│   │   │   ├── useScene.js         ← Three.js object management
+│   │   │   ├── usePhysics.js       ← Rapier integration
+│   │   │   └── useAnchors.js       ← QR anchor CRUD
+│   │   ├── store/
+│   │   │   ├── sceneStore.js
+│   │   │   ├── gestureStore.js
+│   │   │   ├── uiStore.js
+│   │   │   └── physicsStore.js
+│   │   ├── utils/
+│   │   │   ├── gestureRecognizer.js
+│   │   │   ├── meshOperations.js
+│   │   │   └── exporters.js
+│   │   └── pages/
+│   │       ├── Editor.jsx
+│   │       └── AnchorViewer.jsx   ← /anchor/:id
+└── server/
+    ├── package.json
+    ├── index.js
+    ├── routes/
+    │   ├── anchors.js
+    │   └── exports.js
+    └── data/
+        └── anchors.json
+
+───────────────────────────────────────────────
+IMPORTANT NOTES FOR REPLIT
+───────────────────────────────────────────────
+1. Do NOT use any Replit-specific APIs or environment assumptions
+2. All ports must be configurable via .env (PORT, VITE_PORT)
+3. MediaPipe CDN models: load from 
+   https://cdn.jsdelivr.net/npm/@mediapipe/hands/
+4. Include a README.md with setup instructions
+5. Include .env.example with all required variables
+6. The app must work on any Node 18+ environment after `pnpm install`
+7. No hardcoded absolute paths; use import.meta.url and __dirname correctly
+8. Handle CORS and WebSocket upgrade properly for Replit's proxy layer
+
+Generate all files completely. Do not use placeholder comments like 
+"// implement this later". Every feature described must have working code.
+Start with package.json files, then vite.config.js, then server/index.js, 
+then the React components in order of dependency.
