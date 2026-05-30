@@ -1,11 +1,12 @@
 import { useEffect, useRef, useState } from "react";
-import { useParams, Link } from "wouter";
-import { useGetAnchor } from "@workspace/api-client-react";
+import { useSearch, Link } from "wouter";
+import { decodeSceneFromParam, AnchorSceneData } from "@/store/anchorStore";
 import { Canvas } from "@react-three/fiber";
-import { OrbitControls, Environment, Grid, Text } from "@react-three/drei";
+import { OrbitControls, Environment, Grid } from "@react-three/drei";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, Camera, Box, Maximize2 } from "lucide-react";
+import { ArrowLeft, Camera, Maximize2 } from "lucide-react";
 import { Component, type ReactNode } from "react";
+import type { SceneObject } from "@/types";
 
 // ── Error boundary para WebGL ──
 class WebGLBoundary extends Component<{ children: ReactNode }, { error: boolean }> {
@@ -33,24 +34,44 @@ class WebGLBoundary extends Component<{ children: ReactNode }, { error: boolean 
   }
 }
 
-// ── Mesh de representación del anclaje ──
-function AnchorMesh({ anchor }: { anchor: any }) {
+// ── Renderiza un objeto de la escena por tipo ──
+function SceneMesh({ obj }: { obj: SceneObject }) {
+  if (!obj.visible) return null;
   return (
     <group
-      position={[anchor.position.x, anchor.position.y, anchor.position.z]}
-      rotation={[anchor.rotation.x, anchor.rotation.y, anchor.rotation.z]}
-      scale={[anchor.scale.x, anchor.scale.y, anchor.scale.z]}
+      position={[obj.position.x, obj.position.y, obj.position.z]}
+      rotation={[obj.rotation.x, obj.rotation.y, obj.rotation.z]}
+      scale={[obj.scale.x, obj.scale.y, obj.scale.z]}
     >
       <mesh castShadow receiveShadow>
-        <boxGeometry args={[1, 1, 1]} />
-        <meshStandardMaterial color="#7b2fff" metalness={0.6} roughness={0.2} />
+        {obj.type === "box" && <boxGeometry args={[1, 1, 1]} />}
+        {obj.type === "sphere" && <sphereGeometry args={[0.5, 32, 32]} />}
+        {obj.type === "cylinder" && <cylinderGeometry args={[0.5, 0.5, 1, 32]} />}
+        {obj.type === "torus" && <torusGeometry args={[0.5, 0.2, 16, 64]} />}
+        {obj.type === "cone" && <coneGeometry args={[0.5, 1, 32]} />}
+        {obj.type === "capsule" && <capsuleGeometry args={[0.3, 0.7, 8, 16]} />}
+        {obj.type === "tetrahedron" && <tetrahedronGeometry args={[0.7]} />}
+        {obj.type === "icosahedron" && <icosahedronGeometry args={[0.7]} />}
+        {obj.type === "torusKnot" && <torusKnotGeometry args={[0.4, 0.15, 100, 16]} />}
+        {!["box","sphere","cylinder","torus","cone","capsule","tetrahedron","icosahedron","torusKnot"].includes(obj.type) && (
+          <boxGeometry args={[1, 1, 1]} />
+        )}
+        <meshStandardMaterial
+          color={obj.material.color}
+          roughness={obj.material.roughness}
+          metalness={obj.material.metalness}
+          emissive={obj.material.emissive}
+          opacity={obj.material.opacity}
+          transparent={obj.material.opacity < 1}
+          wireframe={obj.material.wireframe}
+        />
       </mesh>
     </group>
   );
 }
 
-// ── Escena 3D ──
-function Scene3D({ anchor, transparent }: { anchor: any; transparent: boolean }) {
+// ── Escena 3D completa con todos los objetos del anclaje ──
+function Scene3D({ sceneData, transparent }: { sceneData: AnchorSceneData; transparent: boolean }) {
   return (
     <Canvas
       shadows
@@ -65,13 +86,15 @@ function Scene3D({ anchor, transparent }: { anchor: any; transparent: boolean })
         <Grid args={[20, 20]} cellColor="#2a2a3a" sectionColor="#3a3a4a" fadeDistance={20} />
       )}
       <OrbitControls makeDefault autoRotate autoRotateSpeed={0.5} />
-      <AnchorMesh anchor={anchor} />
+      {sceneData.objects.map((obj) => (
+        <SceneMesh key={obj.id} obj={obj} />
+      ))}
     </Canvas>
   );
 }
 
 // ── Modo AR: superpone el canvas 3D sobre el feed de cámara trasera ──
-function AROverlay({ anchor }: { anchor: any }) {
+function AROverlay({ sceneData }: { sceneData: AnchorSceneData }) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const [camError, setCamError] = useState<string | null>(null);
   const [camReady, setCamReady] = useState(false);
@@ -80,11 +103,7 @@ function AROverlay({ anchor }: { anchor: any }) {
     let stream: MediaStream | null = null;
     navigator.mediaDevices
       .getUserMedia({
-        video: {
-          facingMode: { ideal: "environment" }, // Cámara trasera en móvil
-          width: { ideal: 1280 },
-          height: { ideal: 720 },
-        },
+        video: { facingMode: { ideal: "environment" }, width: { ideal: 1280 }, height: { ideal: 720 } },
         audio: false,
       })
       .then((s) => {
@@ -95,46 +114,29 @@ function AROverlay({ anchor }: { anchor: any }) {
           setCamReady(true);
         }
       })
-      .catch((err) => {
-        setCamError("No se pudo acceder a la cámara: " + err.message);
-      });
+      .catch((err) => setCamError("No se pudo acceder a la cámara: " + err.message));
 
-    return () => {
-      stream?.getTracks().forEach((t) => t.stop());
-    };
+    return () => { stream?.getTracks().forEach((t) => t.stop()); };
   }, []);
 
   return (
     <div className="absolute inset-0">
-      {/* Feed de cámara como fondo */}
-      <video
-        ref={videoRef}
-        className="absolute inset-0 w-full h-full object-cover"
-        playsInline
-        muted
-        autoPlay
-      />
-
-      {/* Canvas 3D encima, fondo transparente */}
+      <video ref={videoRef} className="absolute inset-0 w-full h-full object-cover" playsInline muted autoPlay />
       <div className="absolute inset-0">
         <WebGLBoundary>
-          <Scene3D anchor={anchor} transparent />
+          <Scene3D sceneData={sceneData} transparent />
         </WebGLBoundary>
       </div>
-
       {camError && (
         <div className="absolute bottom-20 left-4 right-4 bg-[#ff3366]/90 text-white text-xs font-mono p-3 rounded-lg text-center">
           {camError}
         </div>
       )}
-
       {!camReady && !camError && (
         <div className="absolute inset-0 flex items-center justify-center bg-[#0a0a0f]/80">
           <div className="text-[#00f0ff] font-mono text-sm animate-pulse">Iniciando cámara AR...</div>
         </div>
       )}
-
-      {/* Etiqueta AR */}
       <div className="absolute top-16 left-1/2 -translate-x-1/2 bg-[#00f0ff] text-[#0a0a0f] text-[10px] font-mono font-bold px-3 py-1 rounded-full tracking-widest pointer-events-none">
         REALIDAD AUMENTADA
       </div>
@@ -143,13 +145,15 @@ function AROverlay({ anchor }: { anchor: any }) {
 }
 
 export default function AnchorViewer() {
-  const params = useParams();
-  const id = params.id as string;
+  const search = useSearch();
+  const params = new URLSearchParams(search);
+  const encoded = params.get("s");
+
   const [arMode, setArMode] = useState(false);
   const [fullscreen, setFullscreen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
 
-  const { data: anchor, isLoading, error } = useGetAnchor(id, { query: { enabled: !!id, queryKey: [`anchor-${id}`] } });
+  const sceneData = encoded ? decodeSceneFromParam(encoded) : null;
 
   const toggleFullscreen = () => {
     if (!document.fullscreenElement && containerRef.current) {
@@ -159,26 +163,20 @@ export default function AnchorViewer() {
     }
   };
 
-  // Detectar salida de fullscreen
   useEffect(() => {
     const handler = () => setFullscreen(!!document.fullscreenElement);
     document.addEventListener("fullscreenchange", handler);
     return () => document.removeEventListener("fullscreenchange", handler);
   }, []);
 
-  if (isLoading) {
+  if (!encoded || !sceneData) {
     return (
-      <div className="h-screen w-full flex flex-col items-center justify-center bg-[#0a0a0f] gap-4">
-        <div className="w-8 h-8 border-2 border-[#00f0ff] border-t-transparent rounded-full animate-spin" />
-        <span className="text-[#00f0ff] text-sm font-mono">Cargando anclaje...</span>
-      </div>
-    );
-  }
-
-  if (error || !anchor) {
-    return (
-      <div className="h-screen w-full flex flex-col items-center justify-center bg-[#0a0a0f] text-[#ff3366] font-mono gap-4 p-6">
-        <div className="text-center">Anclaje no encontrado o error al cargar.</div>
+      <div className="h-[100dvh] w-full flex flex-col items-center justify-center bg-[#0a0a0f] text-[#ff3366] font-mono gap-4 p-6">
+        <div className="text-center">
+          <div className="text-2xl text-[#00f0ff] mb-3" style={{ fontFamily: "Syne, sans-serif" }}>GestureForge 3D</div>
+          <p className="text-sm">Anclaje no encontrado o enlace inválido.</p>
+          <p className="text-xs text-[#3a3a4a] mt-2">Genera un nuevo anclaje QR desde el editor.</p>
+        </div>
         <Link href="/">
           <Button variant="outline" className="border-[#2a2a3a] text-[#e8e8f0]">
             <ArrowLeft className="w-4 h-4 mr-2" />
@@ -192,7 +190,7 @@ export default function AnchorViewer() {
   return (
     <div
       ref={containerRef}
-      className="h-screen w-full flex flex-col bg-[#0a0a0f] text-[#e8e8f0] overflow-hidden relative"
+      className="h-[100dvh] w-full flex flex-col bg-[#0a0a0f] text-[#e8e8f0] overflow-hidden relative"
       style={{ touchAction: "none" }}
     >
       {/* ── Barra superior ── */}
@@ -211,15 +209,13 @@ export default function AnchorViewer() {
         </div>
 
         <div className="text-center pointer-events-none">
-          <h1
-            className="text-base sm:text-xl font-bold text-[#00f0ff] drop-shadow-md"
-            style={{ fontFamily: "Syne, sans-serif" }}
-          >
-            {anchor.name}
+          <h1 className="text-base sm:text-xl font-bold text-[#00f0ff] drop-shadow-md" style={{ fontFamily: "Syne, sans-serif" }}>
+            {sceneData.name}
           </h1>
-          {arMode && (
-            <p className="text-[10px] font-mono text-[#5a5a72]">Modo AR activo</p>
-          )}
+          <p className="text-[10px] font-mono text-[#5a5a72]">
+            {sceneData.objects.length} objeto{sceneData.objects.length !== 1 ? "s" : ""}
+            {arMode && " · AR activo"}
+          </p>
         </div>
 
         <div className="flex gap-2 pointer-events-auto">
@@ -227,9 +223,7 @@ export default function AnchorViewer() {
             variant="outline"
             size="sm"
             className={`backdrop-blur-md border-[#2a2a3a] h-9 ${
-              arMode
-                ? "bg-[#00f0ff]/20 text-[#00f0ff] border-[#00f0ff]"
-                : "bg-[#16161f]/80 text-[#e8e8f0] hover:bg-[#2a2a3a]"
+              arMode ? "bg-[#00f0ff]/20 text-[#00f0ff] border-[#00f0ff]" : "bg-[#16161f]/80 text-[#e8e8f0] hover:bg-[#2a2a3a]"
             }`}
             onClick={() => setArMode(!arMode)}
           >
@@ -250,10 +244,10 @@ export default function AnchorViewer() {
       {/* ── Contenido principal ── */}
       <div className="absolute inset-0">
         {arMode ? (
-          <AROverlay anchor={anchor} />
+          <AROverlay sceneData={sceneData} />
         ) : (
           <WebGLBoundary>
-            <Scene3D anchor={anchor} transparent={false} />
+            <Scene3D sceneData={sceneData} transparent={false} />
           </WebGLBoundary>
         )}
       </div>
@@ -265,20 +259,7 @@ export default function AnchorViewer() {
             className="px-4 py-2 rounded-full text-[10px] font-mono text-[#5a5a72] border border-[#2a2a3a]"
             style={{ background: "rgba(10,10,15,0.7)", backdropFilter: "blur(8px)" }}
           >
-            <Box className="w-3 h-3 inline mr-2 text-[#7b2fff]" />
-            Anclaje ID: {anchor.id.slice(0, 8)}...
-          </div>
-        </div>
-      )}
-
-      {/* ── Instrucción táctil ── */}
-      {!arMode && (
-        <div className="absolute bottom-14 left-1/2 -translate-x-1/2 z-20 pointer-events-none sm:hidden">
-          <div
-            className="px-3 py-1 rounded-full text-[10px] font-mono text-[#5a5a72]"
-            style={{ background: "rgba(10,10,15,0.5)" }}
-          >
-            Arrastra para orbitar
+            Arrastra para orbitar · Pinza para zoom
           </div>
         </div>
       )}

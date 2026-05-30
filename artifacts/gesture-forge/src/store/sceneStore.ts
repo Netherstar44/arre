@@ -1,4 +1,5 @@
 import { create } from "zustand";
+import { persist } from "zustand/middleware";
 import { SceneObject } from "@/types";
 
 interface SceneStore {
@@ -12,19 +13,34 @@ interface SceneStore {
   updateObject: (id: string, updates: Partial<SceneObject>) => void;
   setTransformMode: (mode: "translate" | "rotate" | "scale") => void;
   setEditMode: (mode: "object" | "edit" | "sculpt") => void;
+  clearScene: () => void;
 }
 
-export const useSceneStore = create<SceneStore>((set) => ({
-  objects: [],
-  selectedId: null,
-  transformMode: "translate",
-  editMode: "object",
-  addObject: (obj) => set((state) => ({ objects: [...state.objects, obj] })),
-  removeObject: (id) => set((state) => ({ objects: state.objects.filter((o) => o.id !== id), selectedId: state.selectedId === id ? null : state.selectedId })),
-  selectObject: (id) => set({ selectedId: id }),
-  updateObject: (id, updates) => set((state) => ({
-    objects: state.objects.map((o) => o.id === id ? { ...o, ...updates } : o)
-  })),
-  setTransformMode: (mode) => set({ transformMode: mode }),
-  setEditMode: (mode) => set({ editMode: mode }),
-}));
+export const useSceneStore = create<SceneStore>()(
+  persist(
+    (set) => ({
+      objects: [],
+      selectedId: null,
+      transformMode: "translate",
+      editMode: "object",
+      addObject: (obj) => set((state) => ({ objects: [...state.objects, obj] })),
+      removeObject: (id) =>
+        set((state) => ({
+          objects: state.objects.filter((o) => o.id !== id),
+          selectedId: state.selectedId === id ? null : state.selectedId,
+        })),
+      selectObject: (id) => set({ selectedId: id }),
+      updateObject: (id, updates) =>
+        set((state) => ({
+          objects: state.objects.map((o) => (o.id === id ? { ...o, ...updates } : o)),
+        })),
+      setTransformMode: (mode) => set({ transformMode: mode }),
+      setEditMode: (mode) => set({ editMode: mode }),
+      clearScene: () => set({ objects: [], selectedId: null }),
+    }),
+    {
+      name: "gestureforge-scene",
+      partialize: (state) => ({ objects: state.objects }),
+    }
+  )
+);
