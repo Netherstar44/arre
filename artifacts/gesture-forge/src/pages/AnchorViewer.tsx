@@ -173,7 +173,7 @@ export default function AnchorViewer() {
     return (
       <div className="h-[100dvh] w-full flex flex-col items-center justify-center bg-[#0a0a0f] text-[#ff3366] font-mono gap-4 p-6">
         <div className="text-center">
-          <div className="text-2xl text-[#00f0ff] mb-3" style={{ fontFamily: "Syne, sans-serif" }}>GestureForge 3D</div>
+          <div className="text-2xl text-[#00f0ff] mb-3" style={{ fontFamily: "Syne, sans-serif" }}>ARRE</div>
           <p className="text-sm">Anclaje no encontrado o enlace inválido.</p>
           <p className="text-xs text-[#3a3a4a] mt-2">Genera un nuevo anclaje QR desde el editor.</p>
         </div>

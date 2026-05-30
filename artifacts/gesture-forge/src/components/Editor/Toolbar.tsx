@@ -18,7 +18,7 @@ export function Toolbar() {
           className="text-base sm:text-xl font-bold text-[#00f0ff] tracking-wider whitespace-nowrap"
           style={{ fontFamily: "Syne, sans-serif" }}
         >
-          GestureForge 3D
+          ARRE
         </h1>
 
         {/* Modos — oculto en móvil pequeño */}
