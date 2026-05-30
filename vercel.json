@@ -1,4 +1,8 @@
 {
+  "buildCommand": "pnpm --filter @workspace/gesture-forge run build",
+  "outputDirectory": "artifacts/gesture-forge/dist/public",
+  "installCommand": "pnpm install --frozen-lockfile",
+  "framework": null,
   "cleanUrls": true,
   "rewrites": [
     { "source": "/(.*)", "destination": "/index.html" }
