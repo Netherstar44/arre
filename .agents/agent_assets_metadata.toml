@@ -1,0 +1,8 @@
+uploads = []
+generated = []
+
+[[outputs]]
+id = "qNP-hjGhalf2SLKoq6jz2"
+uri = "file://gestureforge-3d.tar.gz"
+type = "unspecified"
+title = "GestureForge 3D — Proyecto Standalone (.tar.gz)"
