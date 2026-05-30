@@ -1,0 +1,23 @@
+[
+  {
+    "id": "761db7ec-8c6c-44c6-9df8-27cf4c4d2caa",
+    "name": "Anclaje 30/5/2026, 17:29:24",
+    "position": {
+      "x": 0,
+      "y": 0,
+      "z": 0
+    },
+    "rotation": {
+      "x": 0,
+      "y": 0,
+      "z": 0
+    },
+    "scale": {
+      "x": 1,
+      "y": 1,
+      "z": 1
+    },
+    "modelData": null,
+    "createdAt": "2026-05-30T22:29:25.153Z"
+  }
+]
