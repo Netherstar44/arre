@@ -3,8 +3,14 @@
   "outputDirectory": "artifacts/gesture-forge/dist/public",
   "installCommand": "pnpm install --frozen-lockfile",
   "framework": null,
-  "cleanUrls": true,
+  "functions": {
+    "api/index.ts": {
+      "runtime": "nodejs20.x",
+      "memory": 256
+    }
+  },
   "rewrites": [
+    { "source": "/api/(.*)", "destination": "/api/index" },
     { "source": "/(.*)", "destination": "/index.html" }
   ],
   "headers": [
