@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "vite --config vite.config.ts --host 0.0.0.0",
     "build": "vite build --config vite.config.ts",
+    "vercel-build": "pnpm run build",
     "serve": "vite preview --config vite.config.ts --host 0.0.0.0",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
@@ -82,6 +83,10 @@
     "vite": "catalog:",
     "wouter": "^3.3.5",
     "zod": "catalog:",
-    "zustand": "^5.0.14"
+    "zustand": "^5.0.14",
+    "express": "^5.2.1",
+    "cors": "^2.8.6",
+    "@types/express": "^5.0.6",
+    "@types/cors": "^2.8.19"
   }
 }
