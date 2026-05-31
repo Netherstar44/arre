@@ -1,25 +1,5 @@
 {
-  "buildCommand": "pnpm run build",
-  "outputDirectory": "public",
+  "buildCommand": "node scripts/vercel-build.mjs",
   "installCommand": "pnpm install",
-  "framework": null,
-  "functions": {
-    "api/index.ts": {
-      "runtime": "nodejs20.x",
-      "memory": 256
-    }
-  },
-  "rewrites": [
-    { "source": "/api/(.*)", "destination": "/api/index" },
-    { "source": "/(.*)", "destination": "/index.html" }
-  ],
-  "headers": [
-    {
-      "source": "/(.*)",
-      "headers": [
-        { "key": "Cross-Origin-Embedder-Policy", "value": "require-corp" },
-        { "key": "Cross-Origin-Opener-Policy", "value": "same-origin" }
-      ]
-    }
-  ]
+  "framework": null
 }
