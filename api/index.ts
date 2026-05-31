@@ -56,7 +56,8 @@ app.post("/api/anchors", (req: Request, res: Response) => {
 });
 
 app.get("/api/anchors/:id", (req: Request, res: Response) => {
-  const anchor = anchorsMap.get(req.params.id);
+  const id = String(req.params.id);
+  const anchor = anchorsMap.get(id);
   if (!anchor) {
     res.status(404).json({ error: "Anclaje no encontrado" });
     return;
@@ -65,11 +66,12 @@ app.get("/api/anchors/:id", (req: Request, res: Response) => {
 });
 
 app.delete("/api/anchors/:id", (req: Request, res: Response) => {
-  if (!anchorsMap.has(req.params.id)) {
+  const id = String(req.params.id);
+  if (!anchorsMap.has(id)) {
     res.status(404).json({ error: "Anclaje no encontrado" });
     return;
   }
-  anchorsMap.delete(req.params.id);
+  anchorsMap.delete(id);
   res.json({ success: true, message: "Anclaje eliminado" });
 });
 
@@ -89,7 +91,7 @@ app.post("/api/export", (req: Request, res: Response) => {
 });
 
 app.get("/api/export/:filename", (req: Request, res: Response) => {
-  const safeFilename = basename(req.params.filename).replace(/[^a-zA-Z0-9._-]/g, "_");
+  const safeFilename = basename(String(req.params.filename)).replace(/[^a-zA-Z0-9._-]/g, "_");
   const buffer = exportsMap.get(safeFilename);
   if (!buffer) {
     res.status(404).json({ error: "Archivo no encontrado (puede haber expirado)" });
