@@ -1,6 +1,6 @@
 {
   "buildCommand": "pnpm --filter @workspace/gesture-forge run build",
-  "outputDirectory": "dist",
+  "outputDirectory": "artifacts/gesture-forge/dist",
   "installCommand": "pnpm install --frozen-lockfile",
   "framework": null,
   "functions": {
