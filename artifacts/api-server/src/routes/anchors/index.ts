@@ -1,7 +1,4 @@
 import { Router, type IRouter } from "express";
-import { readFileSync, writeFileSync, existsSync, mkdirSync } from "fs";
-import { join, dirname } from "path";
-import { fileURLToPath } from "url";
 import { randomUUID } from "crypto";
 import {
   ListAnchorsResponse,
@@ -12,38 +9,14 @@ import {
   DeleteAnchorResponse,
 } from "@workspace/api-zod";
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = dirname(__filename);
-const DATA_DIR = join(__dirname, "../../data");
-const ANCHORS_FILE = join(DATA_DIR, "anchors.json");
-
-function ensureDataDir() {
-  if (!existsSync(DATA_DIR)) {
-    mkdirSync(DATA_DIR, { recursive: true });
-  }
-}
-
-function readAnchors(): unknown[] {
-  ensureDataDir();
-  if (!existsSync(ANCHORS_FILE)) {
-    return [];
-  }
-  try {
-    return JSON.parse(readFileSync(ANCHORS_FILE, "utf-8")) as unknown[];
-  } catch {
-    return [];
-  }
-}
-
-function writeAnchors(anchors: unknown[]) {
-  ensureDataDir();
-  writeFileSync(ANCHORS_FILE, JSON.stringify(anchors, null, 2), "utf-8");
-}
+// In-memory store — the frontend (anchorStore.ts) is the persistent source of truth via localStorage.
+// This backend store is secondary / optional; data resets on cold starts which is acceptable.
+const anchorsMap = new Map<string, unknown>();
 
 const router: IRouter = Router();
 
-router.get("/anchors", async (req, res): Promise<void> => {
-  const anchors = readAnchors();
+router.get("/anchors", async (_req, res): Promise<void> => {
+  const anchors = Array.from(anchorsMap.values());
   res.json(ListAnchorsResponse.parse(anchors));
 });
 
@@ -62,10 +35,7 @@ router.post("/anchors", async (req, res): Promise<void> => {
     createdAt: new Date().toISOString(),
   };
 
-  const anchors = readAnchors();
-  anchors.push(anchor);
-  writeAnchors(anchors);
-
+  anchorsMap.set(anchor.id, anchor);
   res.status(201).json(GetAnchorResponse.parse(anchor));
 });
 
@@ -76,9 +46,7 @@ router.get("/anchors/:id", async (req, res): Promise<void> => {
     return;
   }
 
-  const anchors = readAnchors() as Array<{ id: string }>;
-  const anchor = anchors.find((a) => a.id === params.data.id);
-
+  const anchor = anchorsMap.get(params.data.id);
   if (!anchor) {
     res.status(404).json({ error: "Anclaje no encontrado" });
     return;
@@ -94,17 +62,12 @@ router.delete("/anchors/:id", async (req, res): Promise<void> => {
     return;
   }
 
-  const anchors = readAnchors() as Array<{ id: string }>;
-  const index = anchors.findIndex((a) => a.id === params.data.id);
-
-  if (index === -1) {
+  if (!anchorsMap.has(params.data.id)) {
     res.status(404).json({ error: "Anclaje no encontrado" });
     return;
   }
 
-  anchors.splice(index, 1);
-  writeAnchors(anchors);
-
+  anchorsMap.delete(params.data.id);
   res.json(DeleteAnchorResponse.parse({ success: true, message: "Anclaje eliminado" }));
 });
 
